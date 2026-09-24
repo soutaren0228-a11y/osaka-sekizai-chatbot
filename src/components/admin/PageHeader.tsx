@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { usePendingChanges } from "@/hooks/usePendingChanges";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import { publishAll } from "@/lib/data/publish";
+import { CURRENT_USER_EMAIL } from "@/lib/data/currentUser";
 import { useToast } from "@/components/ui/ToastProvider";
 
 interface PageHeaderProps {
@@ -12,13 +14,14 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, description }: PageHeaderProps) {
   const { count, loaded, refresh } = usePendingChanges();
+  const canEdit = useCanEdit();
   const { showToast } = useToast();
   const [publishing, setPublishing] = useState(false);
 
   async function handlePublish() {
-    if (publishing || count === 0) return;
+    if (publishing || count === 0 || !canEdit) return;
     setPublishing(true);
-    await publishAll();
+    await publishAll(CURRENT_USER_EMAIL);
     setPublishing(false);
     refresh();
     showToast({ message: "公開しました。お客さま向けチャットに反映されました。" });
@@ -46,7 +49,8 @@ export function PageHeader({ title, description }: PageHeaderProps) {
                 <button
                   type="button"
                   onClick={handlePublish}
-                  disabled={publishing}
+                  disabled={publishing || !canEdit}
+                  title={canEdit ? undefined : "見るだけの権限のため公開できません"}
                   className="h-11 rounded-[var(--radius-control)] bg-navy px-4 text-sm font-medium text-white disabled:opacity-40"
                 >
                   {publishing ? "公開しています…" : "公開する"}

@@ -7,6 +7,7 @@ import {
   addSourceFromUrl,
 } from "@/lib/data/sources";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useCanEdit } from "@/hooks/useCanEdit";
 
 type TabKey = "url" | "pdf" | "text";
 
@@ -19,6 +20,7 @@ const tabs: { key: TabKey; label: string }[] = [
 export function AddSourceForms() {
   const [activeTab, setActiveTab] = useState<TabKey>("url");
   const { showToast } = useToast();
+  const canEdit = useCanEdit();
 
   function handleAdded() {
     showToast({ message: "追加しました。右のテスト画面で試せます。" });
@@ -45,11 +47,11 @@ export function AddSourceForms() {
         ))}
       </div>
 
-      <div className="p-5">
+      <fieldset disabled={!canEdit} className="p-5">
         {activeTab === "url" && <UrlForm onAdded={handleAdded} />}
         {activeTab === "pdf" && <PdfForm onAdded={handleAdded} />}
         {activeTab === "text" && <TextForm onAdded={handleAdded} />}
-      </div>
+      </fieldset>
     </div>
   );
 }

@@ -144,6 +144,14 @@ export async function publishFaqsDraft(): Promise<void> {
   window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
 }
 
+/** 過去の版に戻す：下書き・公開版の両方を指定の内容で上書きする */
+export async function restoreFaqsSnapshot(records: FaqRecord[]): Promise<void> {
+  if (!isBrowser()) return;
+  window.localStorage.setItem(DRAFT_KEY, JSON.stringify(records));
+  window.localStorage.setItem(PUBLISHED_KEY, JSON.stringify(records));
+  window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
+}
+
 function truncate(text: string): string {
   return text.length > 20 ? `${text.slice(0, 20)}…` : text;
 }

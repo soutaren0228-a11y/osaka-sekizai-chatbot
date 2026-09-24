@@ -8,9 +8,12 @@ import {
   saveDraftAppearance,
   type AppearanceSettings,
 } from "@/lib/data/appearance";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import { useToast } from "@/components/ui/ToastProvider";
+import { ReadOnlyNotice } from "@/components/admin/ReadOnlyNotice";
 
 export function AppearanceSection() {
+  const canEdit = useCanEdit();
   const { showToast } = useToast();
   const [settings, setSettings] = useState<AppearanceSettings | null>(null);
   const [saving, setSaving] = useState(false);
@@ -63,7 +66,7 @@ export function AppearanceSection() {
   }
 
   async function handleSave() {
-    if (!settings || saving) return;
+    if (!settings || saving || !canEdit) return;
     setSaving(true);
     await saveDraftAppearance(settings);
     setSaving(false);
@@ -72,6 +75,9 @@ export function AppearanceSection() {
 
   return (
     <div className="flex flex-col gap-6">
+      {!canEdit && <ReadOnlyNotice />}
+
+      <fieldset disabled={!canEdit} className="contents">
       <section className="rounded-[var(--radius-card)] border border-border bg-surface p-5">
         <h2 className="font-heading text-base font-bold text-text">テーマの色</h2>
         <div className="mt-3 flex flex-wrap gap-3">
@@ -297,6 +303,7 @@ export function AppearanceSection() {
       >
         {saving ? "保存しています…" : "変更を保存"}
       </button>
+      </fieldset>
     </div>
   );
 }

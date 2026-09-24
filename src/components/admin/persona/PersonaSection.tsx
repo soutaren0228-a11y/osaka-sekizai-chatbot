@@ -9,9 +9,12 @@ import {
   type PersonaSettings,
 } from "@/lib/data/persona";
 import { createId } from "@/lib/utils/id";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import { useToast } from "@/components/ui/ToastProvider";
+import { ReadOnlyNotice } from "@/components/admin/ReadOnlyNotice";
 
 export function PersonaSection() {
+  const canEdit = useCanEdit();
   const { showToast } = useToast();
   const [settings, setSettings] = useState<PersonaSettings | null>(null);
   const [newTopic, setNewTopic] = useState("");
@@ -67,7 +70,7 @@ export function PersonaSection() {
   }
 
   async function handleSave() {
-    if (!settings || saving) return;
+    if (!settings || saving || !canEdit) return;
     setSaving(true);
     await saveDraftPersona(settings);
     setSaving(false);
@@ -76,6 +79,9 @@ export function PersonaSection() {
 
   return (
     <div className="flex flex-col gap-6">
+      {!canEdit && <ReadOnlyNotice />}
+
+      <fieldset disabled={!canEdit} className="contents">
       <section className="rounded-[var(--radius-card)] border border-border bg-surface p-5">
         <h2 className="font-heading text-base font-bold text-text">口調</h2>
         <p className="mt-1 text-sm text-text-muted">
@@ -195,6 +201,7 @@ export function PersonaSection() {
       >
         {saving ? "保存しています…" : "変更を保存"}
       </button>
+      </fieldset>
     </div>
   );
 }

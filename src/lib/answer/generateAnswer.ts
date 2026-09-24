@@ -17,6 +17,7 @@ import {
   type PersonaSettings,
   type ToneKey,
 } from "@/lib/data/persona";
+import { getUsageSettings, isOverLimit } from "@/lib/data/usage";
 
 export interface AnswerContact {
   phone: string;
@@ -33,6 +34,8 @@ export interface AnswerResult {
   refused?: boolean;
   /** unanswered または refused のとき、案内先の表示に使う */
   contact?: AnswerContact;
+  /** 利用上限に達しているため、案内文だけを返したかどうか */
+  unavailable?: boolean;
 }
 
 const FALLBACK_TEMPLATES: Record<ToneKey, string> = {
@@ -132,6 +135,11 @@ export async function generateAnswer(
   question: string,
   options: { isTest: boolean }
 ): Promise<AnswerResult> {
+  const usage = await getUsageSettings();
+  if (isOverLimit(usage)) {
+    return { answer: usage.unavailableMessage, unanswered: false, unavailable: true };
+  }
+
   const trimmed = question.trim();
   const { faqs, persona } = await loadContext(options.isTest);
   const contact = buildContact(persona);

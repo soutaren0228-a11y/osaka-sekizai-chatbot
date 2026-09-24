@@ -114,6 +114,16 @@ export async function publishAppearanceDraft(): Promise<void> {
   window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
 }
 
+/** 過去の版に戻す：下書き・公開版の両方を指定の内容で上書きする */
+export async function restoreAppearanceSnapshot(
+  settings: AppearanceSettings
+): Promise<void> {
+  if (!isBrowser()) return;
+  window.localStorage.setItem(DRAFT_KEY, JSON.stringify(settings));
+  window.localStorage.setItem(PUBLISHED_KEY, JSON.stringify(settings));
+  window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
+}
+
 export function resolveAccentColor(settings: AppearanceSettings): string {
   if (settings.colorPresetKey === "custom") return settings.customColor;
   const preset = COLOR_PRESETS.find((p) => p.key === settings.colorPresetKey);

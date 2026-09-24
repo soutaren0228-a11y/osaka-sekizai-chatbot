@@ -8,6 +8,7 @@ export interface ChatMessage {
   streaming?: boolean;
   unanswered?: boolean;
   refused?: boolean;
+  unavailable?: boolean;
   contact?: AnswerContact;
 }
 

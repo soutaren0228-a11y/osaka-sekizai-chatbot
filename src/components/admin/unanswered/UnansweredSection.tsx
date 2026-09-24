@@ -10,6 +10,8 @@ import {
 import type { UnansweredEntry } from "@/lib/data/unanswered";
 import { addFaq } from "@/lib/data/faqs";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useCanEdit } from "@/hooks/useCanEdit";
+import { ReadOnlyNotice } from "@/components/admin/ReadOnlyNotice";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("ja-JP", {
@@ -22,10 +24,12 @@ function formatDate(iso: string): string {
 export function UnansweredSection() {
   const { entries, loaded, refresh } = useUnanswered();
   const { showToast } = useToast();
+  const canEdit = useCanEdit();
   const [openAnswerId, setOpenAnswerId] = useState<string | null>(null);
   const [answerDraft, setAnswerDraft] = useState("");
 
   async function handleDismiss(entry: UnansweredEntry) {
+    if (!canEdit) return;
     await dismissUnanswered(entry.id);
     if (openAnswerId === entry.id) setOpenAnswerId(null);
     showToast({
@@ -41,7 +45,7 @@ export function UnansweredSection() {
   }
 
   async function handleAddToFaq(entry: UnansweredEntry) {
-    if (!answerDraft.trim()) return;
+    if (!answerDraft.trim() || !canEdit) return;
     await addFaq({ question: entry.question, answer: answerDraft.trim() });
     await removeUnanswered(entry.id);
     setOpenAnswerId(null);
@@ -62,7 +66,10 @@ export function UnansweredSection() {
   }
 
   return (
-    <ul className="flex flex-col gap-2">
+    <div className="flex flex-col gap-4">
+      {!canEdit && <ReadOnlyNotice />}
+      <fieldset disabled={!canEdit} className="contents">
+      <ul className="flex flex-col gap-2">
       {entries.map((entry) => (
         <li
           key={entry.id}
@@ -128,6 +135,8 @@ export function UnansweredSection() {
           )}
         </li>
       ))}
-    </ul>
+      </ul>
+      </fieldset>
+    </div>
   );
 }

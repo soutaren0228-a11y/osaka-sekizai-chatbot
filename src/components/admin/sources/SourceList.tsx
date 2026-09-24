@@ -11,6 +11,7 @@ import {
 import type { SourceRecord, SourceType } from "@/lib/data/types";
 import { Switch } from "@/components/ui/Switch";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useCanEdit } from "@/hooks/useCanEdit";
 
 const typeLabels: Record<SourceType, string> = {
   url: "URL",
@@ -21,6 +22,7 @@ const typeLabels: Record<SourceType, string> = {
 export function SourceList() {
   const { sources, loaded, refresh } = useSources();
   const { showToast } = useToast();
+  const canEdit = useCanEdit();
   const [keyword, setKeyword] = useState("");
 
   const filtered = sources.filter((s) =>
@@ -30,6 +32,7 @@ export function SourceList() {
   );
 
   async function handleDelete(record: SourceRecord) {
+    if (!canEdit) return;
     await deleteSource(record.id);
     showToast({
       message: `「${record.name}」を削除しました。`,
@@ -44,6 +47,7 @@ export function SourceList() {
   }
 
   async function handleToggle(record: SourceRecord, active: boolean) {
+    if (!canEdit) return;
     await setSourceActive(record.id, active);
     showToast({
       message: active
@@ -53,6 +57,7 @@ export function SourceList() {
   }
 
   async function handleReload(record: SourceRecord) {
+    if (!canEdit) return;
     await reloadSource(record.id);
     showToast({ message: `「${record.name}」を再読み込みしています。` });
   }
@@ -80,17 +85,19 @@ export function SourceList() {
       {filtered.length === 0 ? (
         <EmptyState hasAnySource={sources.length > 0} />
       ) : (
-        <ul className="flex flex-col gap-2">
-          {filtered.map((record) => (
-            <SourceRow
-              key={record.id}
-              record={record}
-              onDelete={() => handleDelete(record)}
-              onToggle={(active) => handleToggle(record, active)}
-              onReload={() => handleReload(record)}
-            />
-          ))}
-        </ul>
+        <fieldset disabled={!canEdit} className="contents">
+          <ul className="flex flex-col gap-2">
+            {filtered.map((record) => (
+              <SourceRow
+                key={record.id}
+                record={record}
+                onDelete={() => handleDelete(record)}
+                onToggle={(active) => handleToggle(record, active)}
+                onReload={() => handleReload(record)}
+              />
+            ))}
+          </ul>
+        </fieldset>
       )}
     </div>
   );

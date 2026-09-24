@@ -2,12 +2,15 @@
 
 import { useId, useState } from "react";
 import { useFaqs } from "@/hooks/useFaqs";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import { addFaq, deleteFaq, restoreFaq, updateFaq } from "@/lib/data/faqs";
 import type { FaqRecord } from "@/lib/data/faqs";
 import { useToast } from "@/components/ui/ToastProvider";
+import { ReadOnlyNotice } from "@/components/admin/ReadOnlyNotice";
 
 export function FaqSection() {
   const { faqs, loaded, refresh } = useFaqs();
+  const canEdit = useCanEdit();
   const { showToast } = useToast();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [question, setQuestion] = useState("");
@@ -32,7 +35,7 @@ export function FaqSection() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!question.trim() || !answer.trim() || submitting) return;
+    if (!question.trim() || !answer.trim() || submitting || !canEdit) return;
     setSubmitting(true);
     if (editingId) {
       await updateFaq(editingId, { question: question.trim(), answer: answer.trim() });
@@ -46,6 +49,7 @@ export function FaqSection() {
   }
 
   async function handleDelete(faq: FaqRecord) {
+    if (!canEdit) return;
     await deleteFaq(faq.id);
     if (editingId === faq.id) cancelEdit();
     showToast({
@@ -68,6 +72,8 @@ export function FaqSection() {
 
   return (
     <div className="flex flex-col gap-6">
+      {!canEdit && <ReadOnlyNotice />}
+
       <form
         onSubmit={handleSubmit}
         className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-5"
@@ -106,7 +112,7 @@ export function FaqSection() {
         <div className="flex gap-2">
           <button
             type="submit"
-            disabled={submitting || !question.trim() || !answer.trim()}
+            disabled={!canEdit || submitting || !question.trim() || !answer.trim()}
             className="h-11 rounded-[var(--radius-control)] bg-navy px-4 text-sm font-medium text-white disabled:opacity-40"
           >
             {editingId ? "更新する" : "追加する"}
@@ -164,14 +170,16 @@ export function FaqSection() {
                   <button
                     type="button"
                     onClick={() => startEdit(faq)}
-                    className="h-11 rounded-[var(--radius-control)] border border-border px-3 text-sm font-medium text-text hover:bg-bg"
+                    disabled={!canEdit}
+                    className="h-11 rounded-[var(--radius-control)] border border-border px-3 text-sm font-medium text-text hover:bg-bg disabled:opacity-50"
                   >
                     編集
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDelete(faq)}
-                    className="h-11 rounded-[var(--radius-control)] border border-danger px-3 text-sm font-medium text-danger hover:bg-danger-light"
+                    disabled={!canEdit}
+                    className="h-11 rounded-[var(--radius-control)] border border-danger px-3 text-sm font-medium text-danger hover:bg-danger-light disabled:opacity-50"
                   >
                     削除
                   </button>

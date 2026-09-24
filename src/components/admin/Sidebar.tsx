@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useUnanswered } from "@/hooks/useUnanswered";
+import { useCanEdit } from "@/hooks/useCanEdit";
 
 interface NavItem {
   key: string;
@@ -18,14 +19,16 @@ const navItems: NavItem[] = [
   { key: "unanswered", label: "答えられなかった質問", href: "/admin/unanswered" },
   { key: "persona", label: "話し方・ルール", href: "/admin/persona" },
   { key: "appearance", label: "見た目", href: "/admin/appearance" },
-  { key: "members", label: "メンバー", note: "フェーズ3で追加予定" },
+  { key: "usage", label: "利用状況", href: "/admin/usage" },
+  { key: "members", label: "メンバー", href: "/admin/members" },
   { key: "publish", label: "公開と履歴", href: "/admin/publish" },
-  { key: "conversations", label: "会話ログ", note: "フェーズ3で追加予定" },
+  { key: "conversations", label: "会話ログ", href: "/admin/conversations" },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const { entries } = useUnanswered();
+  const canEdit = useCanEdit();
 
   return (
     <nav
@@ -75,6 +78,16 @@ export function Sidebar() {
           </Link>
         );
       })}
+
+      {!canEdit && (
+        <Link
+          href="/admin/members"
+          className="mt-auto flex min-h-11 flex-col justify-center gap-0.5 rounded-[var(--radius-control)] border border-border bg-bg px-3 py-2 text-xs text-text-muted hover:bg-navy-light"
+        >
+          <span className="font-bold text-text">見るだけの権限で表示中</span>
+          <span>メンバー画面で切り替え</span>
+        </Link>
+      )}
     </nav>
   );
 }

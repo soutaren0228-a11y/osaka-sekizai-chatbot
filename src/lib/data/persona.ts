@@ -119,3 +119,11 @@ export async function publishPersonaDraft(): Promise<void> {
   window.localStorage.setItem(PUBLISHED_KEY, JSON.stringify(readKey(DRAFT_KEY)));
   window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
 }
+
+/** 過去の版に戻す：下書き・公開版の両方を指定の内容で上書きする */
+export async function restorePersonaSnapshot(settings: PersonaSettings): Promise<void> {
+  if (!isBrowser()) return;
+  window.localStorage.setItem(DRAFT_KEY, JSON.stringify(settings));
+  window.localStorage.setItem(PUBLISHED_KEY, JSON.stringify(settings));
+  window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
+}
