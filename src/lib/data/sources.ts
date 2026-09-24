@@ -7,6 +7,7 @@
  * 定義している。呼び出し側（UI）はこのファイルの外の実装を意識しない。
  */
 import { createId } from "@/lib/utils/id";
+import { compareDesc } from "@/lib/utils/sort";
 import type {
   AddPdfInput,
   AddTextInput,
@@ -88,7 +89,7 @@ export function subscribeSources(callback: () => void): () => void {
 
 export async function getSources(): Promise<SourceRecord[]> {
   const records = readAll();
-  return [...records].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  return [...records].sort((a, b) => compareDesc(a.createdAt, b.createdAt));
 }
 
 function insertLoading(record: SourceRecord) {

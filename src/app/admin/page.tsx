@@ -1,11 +1,15 @@
+"use client";
+
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { useUnanswered } from "@/hooks/useUnanswered";
+import { usePendingChanges } from "@/hooks/usePendingChanges";
 
 const steps = [
   {
     number: 1,
     title: "情報を登録",
-    description: "ページのURL・PDF・文章で、AIに覚えさせたい情報を登録します。",
+    description: "ページのURL・PDF・文章、よくある質問など、AIに覚えさせたい情報を登録します。",
     href: "/admin/sources",
     linkLabel: "AIに覚えさせる情報を開く",
   },
@@ -13,27 +17,57 @@ const steps = [
     number: 2,
     title: "テストで確認",
     description: "画面右の「テスト画面」で、実際にお客さまと同じように質問して確かめます。",
-    href: "/admin/sources",
-    linkLabel: "情報を登録してテストする",
+    href: "/admin/faq",
+    linkLabel: "よくある質問を編集してテストする",
   },
   {
     number: 3,
     title: "公開する",
     description: "内容を確認できたら、公開ボタンでお客さまに見えるようにします。",
-    href: undefined,
-    linkLabel: "フェーズ2で追加予定",
+    href: "/admin/publish",
+    linkLabel: "公開画面を開く",
   },
 ];
 
 export default function AdminHomePage() {
+  const { entries } = useUnanswered();
+  const { count: pendingCount } = usePendingChanges();
+
   return (
     <div>
       <PageHeader
         title="ホーム"
-        description="この画面では、チャットボットの使い方の流れを確認できます。"
+        description="この画面では、今やることと、チャットボットの使い方の流れを確認できます。"
       />
 
       <div className="space-y-6 px-6 py-6">
+        <section className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-5">
+            <div>
+              <h2 className="font-heading text-base font-bold text-text">答えられなかった質問</h2>
+              <p className="mt-1 text-2xl font-bold text-text">{entries.length}件</p>
+            </div>
+            <Link
+              href="/admin/unanswered"
+              className="inline-flex h-11 items-center justify-center rounded-[var(--radius-control)] border border-navy px-3 text-sm font-medium text-navy hover:bg-navy-light"
+            >
+              確認する
+            </Link>
+          </div>
+          <div className="flex flex-col justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-5">
+            <div>
+              <h2 className="font-heading text-base font-bold text-text">未公開の変更</h2>
+              <p className="mt-1 text-2xl font-bold text-text">{pendingCount}件</p>
+            </div>
+            <Link
+              href="/admin/publish"
+              className="inline-flex h-11 items-center justify-center rounded-[var(--radius-control)] border border-navy px-3 text-sm font-medium text-navy hover:bg-navy-light"
+            >
+              公開画面へ
+            </Link>
+          </div>
+        </section>
+
         <section className="rounded-[var(--radius-card)] border border-border bg-surface p-5">
           <h2 className="font-heading text-base font-bold text-text">
             使い方は3ステップ
@@ -51,18 +85,12 @@ export default function AdminHomePage() {
                   {step.title}
                 </h3>
                 <p className="text-sm text-text-muted">{step.description}</p>
-                {step.href ? (
-                  <Link
-                    href={step.href}
-                    className="mt-1 inline-flex h-11 items-center justify-center rounded-[var(--radius-control)] border border-navy px-3 text-sm font-medium text-navy hover:bg-navy-light"
-                  >
-                    {step.linkLabel}
-                  </Link>
-                ) : (
-                  <span className="mt-1 inline-flex h-11 items-center justify-center rounded-[var(--radius-control)] border border-border px-3 text-sm text-text-muted/70">
-                    {step.linkLabel}
-                  </span>
-                )}
+                <Link
+                  href={step.href}
+                  className="mt-1 inline-flex h-11 items-center justify-center rounded-[var(--radius-control)] border border-navy px-3 text-sm font-medium text-navy hover:bg-navy-light"
+                >
+                  {step.linkLabel}
+                </Link>
               </div>
             ))}
           </div>

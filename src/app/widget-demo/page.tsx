@@ -1,5 +1,4 @@
 import { FloatingChatLauncher } from "@/components/chat/FloatingChatLauncher";
-import { defaultChatConfig } from "@/components/chat/types";
 
 export default function WidgetDemoPage() {
   return (
@@ -27,7 +26,7 @@ export default function WidgetDemoPage() {
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text-muted">
             お墓じまい、戒名彫刻、お墓の引っ越し・リフォームなど、お墓に関するご相談を承っております。
-            画面右下の「{defaultChatConfig.launcherLabel}」ボタンから、AIチャットボットにご質問いただけます。
+            画面右下（または左下）のチャットボタンから、AIチャットボットにご質問いただけます。ここに表示される内容は、管理画面で最後に「公開する」を押した内容です。
           </p>
         </div>
 
@@ -46,7 +45,7 @@ export default function WidgetDemoPage() {
         </div>
       </main>
 
-      <FloatingChatLauncher config={defaultChatConfig} position="right" />
+      <FloatingChatLauncher />
     </div>
   );
 }

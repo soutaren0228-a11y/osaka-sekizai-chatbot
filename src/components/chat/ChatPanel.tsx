@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useChatSession } from "@/hooks/useChatSession";
+import { hexToRgba } from "@/lib/utils/color";
 import { MessageBubble } from "./MessageBubble";
 import type { ChatConfig } from "./types";
 
@@ -9,16 +10,16 @@ interface ChatPanelProps {
   config: ChatConfig;
   isTest: boolean;
   onClose?: () => void;
-  botIconLabel?: string;
 }
 
-export function ChatPanel({ config, isTest, onClose, botIconLabel }: ChatPanelProps) {
+export function ChatPanel({ config, isTest, onClose }: ChatPanelProps) {
   const { messages, isSending, sendMessage, reset } = useChatSession({
     isTest,
     greeting: config.greeting,
   });
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const accent = config.accentColor;
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -36,12 +37,22 @@ export function ChatPanel({ config, isTest, onClose, botIconLabel }: ChatPanelPr
     <div className="flex h-full flex-col bg-surface">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2 min-w-0">
-          <div
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-navy text-sm font-bold text-white"
-            aria-hidden
-          >
-            {botIconLabel ?? "石"}
-          </div>
+          {config.iconDataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={config.iconDataUrl}
+              alt=""
+              className="h-9 w-9 shrink-0 rounded-full object-cover"
+            />
+          ) : (
+            <div
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
+              style={{ backgroundColor: accent }}
+              aria-hidden
+            >
+              石
+            </div>
+          )}
           <div className="min-w-0">
             <p className="truncate font-heading text-sm font-bold text-text">
               {config.botName}
@@ -76,7 +87,7 @@ export function ChatPanel({ config, isTest, onClose, botIconLabel }: ChatPanelPr
 
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {messages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
+          <MessageBubble key={message.id} message={message} accentColor={accent} />
         ))}
       </div>
 
@@ -87,7 +98,12 @@ export function ChatPanel({ config, isTest, onClose, botIconLabel }: ChatPanelPr
               key={suggestion}
               type="button"
               onClick={() => void sendMessage(suggestion)}
-              className="h-11 rounded-full border border-navy/30 bg-navy-light px-3 text-xs font-medium text-navy hover:bg-navy/10"
+              className="h-11 rounded-full border px-3 text-xs font-medium hover:opacity-80"
+              style={{
+                backgroundColor: hexToRgba(accent, 0.1),
+                borderColor: hexToRgba(accent, 0.3),
+                color: accent,
+              }}
             >
               {suggestion}
             </button>
@@ -100,6 +116,7 @@ export function ChatPanel({ config, isTest, onClose, botIconLabel }: ChatPanelPr
         onChange={setInput}
         onSend={handleSend}
         disabled={isSending}
+        accentColor={accent}
       />
 
       <p className="border-t border-border px-4 py-2 text-[11px] leading-relaxed text-text-muted">
@@ -114,11 +131,13 @@ function ChatInputBar({
   onChange,
   onSend,
   disabled,
+  accentColor,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSend: () => void;
   disabled: boolean;
+  accentColor: string;
 }) {
   const composingRef = useRef(false);
 
@@ -146,13 +165,15 @@ function ChatInputBar({
             onSend();
           }
         }}
-        className="max-h-28 min-h-11 flex-1 resize-none rounded-[var(--radius-control)] border border-border bg-bg px-3 py-2.5 text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy"
+        className="max-h-28 min-h-11 flex-1 resize-none rounded-[var(--radius-control)] border border-border bg-bg px-3 py-2.5 text-sm text-text focus-visible:outline-none focus-visible:ring-2"
+        style={{ ["--tw-ring-color" as string]: accentColor }}
       />
       <button
         type="button"
         onClick={onSend}
         disabled={disabled || !value.trim()}
-        className="h-11 shrink-0 rounded-[var(--radius-control)] bg-navy px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+        className="h-11 shrink-0 rounded-[var(--radius-control)] px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+        style={{ backgroundColor: accentColor }}
       >
         送信
       </button>

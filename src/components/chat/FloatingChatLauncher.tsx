@@ -1,20 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { useChatConfig } from "@/hooks/useChatConfig";
 import { ChatPanel } from "./ChatPanel";
-import type { ChatConfig } from "./types";
 
-interface FloatingChatLauncherProps {
-  config: ChatConfig;
-  position?: "right" | "left";
-}
-
-export function FloatingChatLauncher({
-  config,
-  position = "right",
-}: FloatingChatLauncherProps) {
+/** お客さま向けチャット。常に公開版の見た目・内容を表示する */
+export function FloatingChatLauncher() {
   const [open, setOpen] = useState(false);
-  const sideClass = position === "right" ? "right-5" : "left-5";
+  const config = useChatConfig(false);
+
+  if (!config) return null;
+
+  const sideClass = config.position === "right" ? "right-5" : "left-5";
 
   return (
     <div className={`fixed bottom-5 z-50 ${sideClass}`}>
@@ -32,7 +29,8 @@ export function FloatingChatLauncher({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex h-14 items-center gap-2 rounded-full bg-navy px-5 text-sm font-bold text-white shadow-lg hover:bg-navy-dark"
+          className="flex h-14 items-center gap-2 rounded-full px-5 text-sm font-bold text-white shadow-lg hover:opacity-90"
+          style={{ backgroundColor: config.accentColor }}
         >
           <span aria-hidden>💬</span>
           {config.launcherLabel}

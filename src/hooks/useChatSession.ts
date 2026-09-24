@@ -36,8 +36,7 @@ export function useChatSession(options: { isTest: boolean; greeting: string }) {
       setIsSending(true);
 
       let full = "";
-      let unanswered = false;
-      const generator = streamAnswer(trimmed);
+      const generator = streamAnswer(trimmed, { isTest: options.isTest });
       let next = await generator.next();
       while (!next.done) {
         full += next.value;
@@ -46,16 +45,24 @@ export function useChatSession(options: { isTest: boolean; greeting: string }) {
         );
         next = await generator.next();
       }
-      unanswered = next.value.unanswered;
+      const result = next.value;
 
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === assistantId ? { ...m, streaming: false, unanswered } : m
+          m.id === assistantId
+            ? {
+                ...m,
+                streaming: false,
+                unanswered: result.unanswered,
+                refused: result.refused,
+                contact: result.contact,
+              }
+            : m
         )
       );
       setIsSending(false);
 
-      if (unanswered) {
+      if (result.unanswered && !result.refused) {
         await recordUnansweredQuestion(trimmed, options.isTest);
       }
     },

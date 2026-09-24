@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useUnanswered } from "@/hooks/useUnanswered";
 
 interface NavItem {
   key: string;
@@ -13,17 +14,18 @@ interface NavItem {
 const navItems: NavItem[] = [
   { key: "home", label: "ホーム", href: "/admin" },
   { key: "sources", label: "AIに覚えさせる情報", href: "/admin/sources" },
-  { key: "faq", label: "よくある質問", note: "フェーズ2で追加予定" },
-  { key: "unanswered", label: "答えられなかった質問", note: "フェーズ2で追加予定" },
-  { key: "persona", label: "話し方・ルール", note: "フェーズ2で追加予定" },
-  { key: "appearance", label: "見た目", note: "フェーズ2で追加予定" },
+  { key: "faq", label: "よくある質問", href: "/admin/faq" },
+  { key: "unanswered", label: "答えられなかった質問", href: "/admin/unanswered" },
+  { key: "persona", label: "話し方・ルール", href: "/admin/persona" },
+  { key: "appearance", label: "見た目", href: "/admin/appearance" },
   { key: "members", label: "メンバー", note: "フェーズ3で追加予定" },
-  { key: "publish", label: "公開と履歴", note: "フェーズ3で追加予定" },
+  { key: "publish", label: "公開と履歴", href: "/admin/publish" },
   { key: "conversations", label: "会話ログ", note: "フェーズ3で追加予定" },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { entries } = useUnanswered();
 
   return (
     <nav
@@ -37,6 +39,8 @@ export function Sidebar() {
 
       {navItems.map((item) => {
         const isActive = item.href && pathname === item.href;
+        const badgeCount = item.key === "unanswered" ? entries.length : 0;
+
         if (!item.href) {
           return (
             <div
@@ -53,14 +57,21 @@ export function Sidebar() {
           <Link
             key={item.key}
             href={item.href}
-            className={`flex min-h-11 items-center rounded-[var(--radius-control)] px-3 py-2 text-sm font-medium transition-colors ${
-              isActive
-                ? "bg-navy text-white"
-                : "text-text hover:bg-bg"
+            className={`flex min-h-11 items-center justify-between rounded-[var(--radius-control)] px-3 py-2 text-sm font-medium transition-colors ${
+              isActive ? "bg-navy text-white" : "text-text hover:bg-bg"
             }`}
             aria-current={isActive ? "page" : undefined}
           >
-            {item.label}
+            <span>{item.label}</span>
+            {badgeCount > 0 && (
+              <span
+                className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-bold ${
+                  isActive ? "bg-white text-navy" : "bg-danger text-white"
+                }`}
+              >
+                {badgeCount}
+              </span>
+            )}
           </Link>
         );
       })}
