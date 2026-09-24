@@ -5,7 +5,6 @@ import {
   getDraftAppearance,
   getPublishedAppearance,
   resolveAccentColor,
-  subscribeAppearance,
   type AppearanceSettings,
 } from "@/lib/data/appearance";
 import type { ChatConfig } from "@/components/chat/types";
@@ -35,7 +34,6 @@ export function useChatConfig(isTest: boolean): ChatConfig | null {
 
   useEffect(() => {
     refresh();
-    return subscribeAppearance(refresh);
   }, [refresh]);
 
   return config;

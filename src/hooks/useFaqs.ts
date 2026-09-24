@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getDraftFaqs, subscribeFaqs } from "@/lib/data/faqs";
+import { getDraftFaqs } from "@/lib/data/faqs";
 import type { FaqRecord } from "@/lib/data/faqs";
 
 export function useFaqs() {
@@ -17,7 +17,6 @@ export function useFaqs() {
 
   useEffect(() => {
     refresh();
-    return subscribeFaqs(refresh);
   }, [refresh]);
 
   return { faqs, loaded, refresh };

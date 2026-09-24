@@ -1,4 +1,4 @@
-import type { AnswerContact } from "@/lib/answer/generateAnswer";
+import type { AnswerContact } from "@/lib/ai/templates";
 import type { ChatPosition } from "@/lib/data/appearance";
 
 export interface ChatMessage {

@@ -5,7 +5,6 @@ import { usePendingChanges } from "@/hooks/usePendingChanges";
 import { usePublishHistory } from "@/hooks/usePublishHistory";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { publishAll, rollbackToVersion } from "@/lib/data/publish";
-import { CURRENT_USER_EMAIL } from "@/lib/data/currentUser";
 import { useToast } from "@/components/ui/ToastProvider";
 import { ReadOnlyNotice } from "@/components/admin/ReadOnlyNotice";
 
@@ -30,7 +29,7 @@ export function PublishSection() {
   async function handlePublish() {
     if (publishing || count === 0 || !canEdit) return;
     setPublishing(true);
-    await publishAll(CURRENT_USER_EMAIL);
+    await publishAll();
     setPublishing(false);
     refresh();
     refreshHistory();
@@ -40,7 +39,7 @@ export function PublishSection() {
   async function handleRollback(versionId: string, label: string) {
     if (rollingBackId || !canEdit) return;
     setRollingBackId(versionId);
-    await rollbackToVersion(versionId, CURRENT_USER_EMAIL);
+    await rollbackToVersion(versionId);
     setRollingBackId(null);
     refresh();
     refreshHistory();

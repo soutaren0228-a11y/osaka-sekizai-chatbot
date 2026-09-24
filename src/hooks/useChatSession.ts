@@ -1,12 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { streamAnswer } from "@/lib/answer/generateAnswer";
-import { recordUnansweredQuestion } from "@/lib/data/unanswered";
-import {
-  appendConversationMessage,
-  startConversation,
-} from "@/lib/data/conversations";
+import { streamChatMessage } from "@/lib/chat/streamChat";
 import { createId } from "@/lib/utils/id";
 import type { ChatMessage } from "@/components/chat/types";
 
@@ -17,12 +12,10 @@ export function useChatSession(options: { isTest: boolean; greeting: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>(initial);
   const [isSending, setIsSending] = useState(false);
   const conversationIdRef = useRef(createId("conv"));
-  const conversationStartedRef = useRef(false);
 
   const reset = useCallback(() => {
     setMessages([{ id: createId("msg"), role: "assistant", content: options.greeting }]);
     conversationIdRef.current = createId("conv");
-    conversationStartedRef.current = false;
   }, [options.greeting]);
 
   const sendMessage = useCallback(
@@ -43,53 +36,53 @@ export function useChatSession(options: { isTest: boolean; greeting: string }) {
       ]);
       setIsSending(true);
 
-      if (!conversationStartedRef.current) {
-        conversationStartedRef.current = true;
-        await startConversation(
-          conversationIdRef.current,
-          options.isTest,
-          options.greeting,
-          trimmed
-        );
-      } else {
-        await appendConversationMessage(conversationIdRef.current, "user", trimmed);
-      }
+      try {
+        let full = "";
+        const generator = streamChatMessage(trimmed, {
+          isTest: options.isTest,
+          conversationId: conversationIdRef.current,
+        });
+        let next = await generator.next();
+        while (!next.done) {
+          full += next.value;
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, content: full } : m))
+          );
+          next = await generator.next();
+        }
+        const result = next.value;
 
-      let full = "";
-      const generator = streamAnswer(trimmed, { isTest: options.isTest });
-      let next = await generator.next();
-      while (!next.done) {
-        full += next.value;
         setMessages((prev) =>
-          prev.map((m) => (m.id === assistantId ? { ...m, content: full } : m))
+          prev.map((m) =>
+            m.id === assistantId
+              ? {
+                  ...m,
+                  streaming: false,
+                  unanswered: result.status === "unanswered",
+                  refused: result.status === "refused",
+                  unavailable: result.status === "unavailable",
+                  contact: result.contact,
+                }
+              : m
+          )
         );
-        next = await generator.next();
-      }
-      const result = next.value;
-
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantId
-            ? {
-                ...m,
-                streaming: false,
-                unanswered: result.unanswered,
-                refused: result.refused,
-                unavailable: result.unavailable,
-                contact: result.contact,
-              }
-            : m
-        )
-      );
-      setIsSending(false);
-
-      await appendConversationMessage(conversationIdRef.current, "assistant", result.answer);
-
-      if (result.unanswered && !result.refused) {
-        await recordUnansweredQuestion(trimmed, options.isTest);
+      } catch (err) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? {
+                  ...m,
+                  streaming: false,
+                  content: err instanceof Error ? err.message : "エラーが発生しました",
+                }
+              : m
+          )
+        );
+      } finally {
+        setIsSending(false);
       }
     },
-    [isSending, options.isTest, options.greeting]
+    [isSending, options.isTest]
   );
 
   return { messages, isSending, sendMessage, reset };

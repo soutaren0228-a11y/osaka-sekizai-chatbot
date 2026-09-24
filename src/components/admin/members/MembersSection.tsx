@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useMembers } from "@/hooks/useMembers";
 import { useCanEdit } from "@/hooks/useCanEdit";
+import { useSession } from "@/components/admin/SessionProvider";
 import {
   changeMemberRole,
   inviteMember,
@@ -10,7 +11,6 @@ import {
   restoreMember,
 } from "@/lib/data/members";
 import type { MemberRecord, MemberRole } from "@/lib/data/members";
-import { getViewerRole, setViewerRole } from "@/lib/data/viewerRole";
 import { useToast } from "@/components/ui/ToastProvider";
 import { ReadOnlyNotice } from "@/components/admin/ReadOnlyNotice";
 
@@ -22,35 +22,39 @@ const ROLE_LABELS: Record<MemberRole, string> = {
 export function MembersSection() {
   const { members, loaded, refresh } = useMembers();
   const canEdit = useCanEdit();
+  const { email: myEmail } = useSession();
   const { showToast } = useToast();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<MemberRole>("editor");
   const [submitting, setSubmitting] = useState(false);
-  const [viewerRoleState, setViewerRoleState] = useState<MemberRole>("editor");
   const emailId = useId();
-
-  useEffect(() => {
-    getViewerRole().then(setViewerRoleState);
-  }, []);
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim() || submitting) return;
     setSubmitting(true);
-    await inviteMember({ email: email.trim(), role });
-    setSubmitting(false);
-    setEmail("");
-    setRole("editor");
-    showToast({ message: `${email.trim()} を招待しました。` });
+    try {
+      await inviteMember({ email: email.trim(), role });
+      setEmail("");
+      setRole("editor");
+      showToast({ message: `${email.trim()} を招待しました。招待メールが送信されます。` });
+      refresh();
+    } catch (err) {
+      showToast({ message: err instanceof Error ? err.message : "招待に失敗しました" });
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function handleRoleChange(member: MemberRecord, newRole: MemberRole) {
     await changeMemberRole(member.id, newRole);
     showToast({ message: `${member.email} の権限を「${ROLE_LABELS[newRole]}」にしました。` });
+    refresh();
   }
 
   async function handleRemove(member: MemberRecord) {
     await removeMember(member.id);
+    refresh();
     showToast({
       message: `${member.email} を削除しました。`,
       action: {
@@ -63,40 +67,8 @@ export function MembersSection() {
     });
   }
 
-  function handleViewerRoleChange(newRole: MemberRole) {
-    setViewerRole(newRole);
-    setViewerRoleState(newRole);
-    showToast({
-      message: `動作確認用に、自分の権限を「${ROLE_LABELS[newRole]}」に切り替えました。`,
-    });
-  }
-
   return (
     <div className="flex flex-col gap-6">
-      <section className="rounded-[var(--radius-card)] border border-border bg-surface p-5">
-        <h2 className="font-heading text-base font-bold text-text">動作確認用：自分の権限を切り替える</h2>
-        <p className="mt-1 text-sm text-text-muted">
-          本実装ではログインしたメンバーの権限がそのまま使われます。今はログイン機能がないため、ここで自分の見え方を確認できます。
-        </p>
-        <div className="mt-3 flex gap-2">
-          {(["editor", "viewer"] as const).map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => handleViewerRoleChange(r)}
-              aria-pressed={viewerRoleState === r}
-              className={`h-11 rounded-[var(--radius-control)] border px-4 text-sm font-medium ${
-                viewerRoleState === r
-                  ? "border-navy bg-navy-light text-navy"
-                  : "border-border bg-bg text-text"
-              }`}
-            >
-              {ROLE_LABELS[r]}
-            </button>
-          ))}
-        </div>
-      </section>
-
       {!canEdit && <ReadOnlyNotice />}
 
       <form
@@ -163,7 +135,7 @@ export function MembersSection() {
                 <div className="min-w-0">
                   <p className="font-medium text-text">
                     {member.email}
-                    {member.isOwner && (
+                    {member.email === myEmail && (
                       <span className="ml-2 rounded-full bg-navy-light px-2 py-0.5 text-xs font-bold text-navy">
                         自分
                       </span>
@@ -178,7 +150,7 @@ export function MembersSection() {
                   <select
                     id={`role-${member.id}`}
                     value={member.role}
-                    disabled={!canEdit}
+                    disabled={!canEdit || member.isOwner}
                     onChange={(e) => handleRoleChange(member, e.target.value as MemberRole)}
                     className="h-11 rounded-[var(--radius-control)] border border-border bg-bg px-3 text-sm disabled:opacity-50"
                   >

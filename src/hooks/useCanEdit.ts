@@ -1,21 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { getViewerRole, subscribeViewerRole } from "@/lib/data/viewerRole";
-import type { MemberRole } from "@/lib/data/members";
+import { useSession } from "@/components/admin/SessionProvider";
 
-/** 今の自分の権限で編集操作ができるかどうか（「見るだけ」なら false） */
+/** 今ログインしているメンバーの権限で編集操作ができるかどうか（「見るだけ」ならfalse） */
 export function useCanEdit(): boolean {
-  const [role, setRole] = useState<MemberRole>("editor");
-
-  const refresh = useCallback(() => {
-    getViewerRole().then(setRole);
-  }, []);
-
-  useEffect(() => {
-    refresh();
-    return subscribeViewerRole(refresh);
-  }, [refresh]);
-
+  const { role } = useSession();
   return role === "editor";
 }

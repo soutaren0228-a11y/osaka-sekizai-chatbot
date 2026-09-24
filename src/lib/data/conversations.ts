@@ -1,12 +1,9 @@
 /**
- * 「会話ログ」のデータ取得層（フェーズ3）。
- * お客さま向けチャットとテスト画面の会話を、それぞれ別のものとして保存する。
- * 実際にお客さまから質問が来た時点（最初の発言）から記録を始める
- * （あいさつだけで終わった訪問を大量に記録しないため）。
+ * 「会話ログ」のデータ取得層（本実装）。
+ * 実際の記録は `/api/chat` がサーバー側で行う
+ * （src/lib/data/server/conversationLog.ts）。ここでは管理画面の閲覧・設定用の
+ * 薄いラッパーのみを提供する。
  */
-import { createId } from "@/lib/utils/id";
-import { compareDesc } from "@/lib/utils/sort";
-
 export interface ConversationMessage {
   id: string;
   role: "user" | "assistant";
@@ -22,93 +19,33 @@ export interface ConversationRecord {
   messages: ConversationMessage[];
 }
 
-const STORAGE_KEY = "osaka-sekizai:conversations:v1";
-const RETENTION_KEY = "osaka-sekizai:conversation-retention-days:v1";
-const CHANGE_EVENT = "osaka-sekizai:conversations-changed";
-const DEFAULT_RETENTION_DAYS = 90;
-
-function isBrowser() {
-  return typeof window !== "undefined";
-}
-
-function readAll(): ConversationRecord[] {
-  if (!isBrowser()) return [];
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw) as ConversationRecord[];
-  } catch {
-    return [];
+async function parseJsonOrThrow(res: Response) {
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(json.error || `リクエストに失敗しました (${res.status})`);
   }
-}
-
-function writeAll(records: ConversationRecord[]) {
-  if (!isBrowser()) return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-  window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
-}
-
-export function subscribeConversations(callback: () => void): () => void {
-  if (!isBrowser()) return () => {};
-  window.addEventListener(CHANGE_EVENT, callback);
-  window.addEventListener("storage", callback);
-  return () => {
-    window.removeEventListener(CHANGE_EVENT, callback);
-    window.removeEventListener("storage", callback);
-  };
-}
-
-/** 会話を開始する（あいさつ＋最初のお客さまの発言をまとめて記録する） */
-export async function startConversation(
-  id: string,
-  isTest: boolean,
-  greeting: string,
-  firstUserMessage: string
-): Promise<void> {
-  const now = new Date().toISOString();
-  const record: ConversationRecord = {
-    id,
-    isTest,
-    startedAt: now,
-    updatedAt: now,
-    messages: [
-      { id: createId("cmsg"), role: "assistant", content: greeting, at: now },
-      { id: createId("cmsg"), role: "user", content: firstUserMessage, at: now },
-    ],
-  };
-  writeAll([record, ...readAll()]);
-}
-
-export async function appendConversationMessage(
-  id: string,
-  role: "user" | "assistant",
-  content: string
-): Promise<void> {
-  const all = readAll();
-  const record = all.find((r) => r.id === id);
-  if (!record) return;
-  const now = new Date().toISOString();
-  record.messages.push({ id: createId("cmsg"), role, content, at: now });
-  record.updatedAt = now;
-  writeAll(all);
+  return json;
 }
 
 export async function getConversations(options: {
   isTest: boolean;
 }): Promise<ConversationRecord[]> {
-  return readAll()
-    .filter((r) => r.isTest === options.isTest)
-    .sort((a, b) => compareDesc(a.updatedAt, b.updatedAt));
+  const res = await fetch(`/api/admin/conversations?isTest=${options.isTest}`);
+  const json = await parseJsonOrThrow(res);
+  return json.conversations as ConversationRecord[];
 }
 
 export async function getConversationRetentionDays(): Promise<number> {
-  if (!isBrowser()) return DEFAULT_RETENTION_DAYS;
-  const raw = window.localStorage.getItem(RETENTION_KEY);
-  const parsed = raw ? Number(raw) : NaN;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_RETENTION_DAYS;
+  const res = await fetch("/api/admin/conversations/retention");
+  const json = await parseJsonOrThrow(res);
+  return json.retentionDays as number;
 }
 
 export async function setConversationRetentionDays(days: number): Promise<void> {
-  if (!isBrowser()) return;
-  window.localStorage.setItem(RETENTION_KEY, String(days));
+  const res = await fetch("/api/admin/conversations/retention", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ retentionDays: days }),
+  });
+  await parseJsonOrThrow(res);
 }

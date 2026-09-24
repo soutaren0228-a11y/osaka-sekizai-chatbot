@@ -32,9 +32,13 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
+
+# 埋め込みウィジェット（npm run build時に src/widget/main.ts から自動生成される）
+/public/widget.js
 
 # typescript
 *.tsbuildinfo

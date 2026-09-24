@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useUnanswered } from "@/hooks/useUnanswered";
 import { useCanEdit } from "@/hooks/useCanEdit";
+import { useSession } from "@/components/admin/SessionProvider";
+import { getSupabaseAuthBrowserClient } from "@/lib/supabase/authBrowser";
 
 interface NavItem {
   key: string;
@@ -27,8 +29,17 @@ const navItems: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { entries } = useUnanswered();
   const canEdit = useCanEdit();
+  const { email } = useSession();
+
+  async function handleLogout() {
+    const supabase = getSupabaseAuthBrowserClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <nav
@@ -79,15 +90,21 @@ export function Sidebar() {
         );
       })}
 
-      {!canEdit && (
-        <Link
-          href="/admin/members"
-          className="mt-auto flex min-h-11 flex-col justify-center gap-0.5 rounded-[var(--radius-control)] border border-border bg-bg px-3 py-2 text-xs text-text-muted hover:bg-navy-light"
+      <div className="mt-auto flex flex-col gap-1 border-t border-border pt-3">
+        <p className="truncate px-2 text-xs text-text-muted">{email}</p>
+        {!canEdit && (
+          <p className="rounded-[var(--radius-control)] bg-bg px-2 py-1.5 text-xs font-bold text-text-muted">
+            見るだけの権限で表示中
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex h-11 items-center rounded-[var(--radius-control)] px-3 text-sm font-medium text-text-muted hover:bg-bg"
         >
-          <span className="font-bold text-text">見るだけの権限で表示中</span>
-          <span>メンバー画面で切り替え</span>
-        </Link>
-      )}
+          ログアウト
+        </button>
+      </div>
     </nav>
   );
 }

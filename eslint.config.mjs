@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // esbuildで生成される埋め込みウィジェットのビルド成果物（ソースではない）
+    "public/widget.js",
   ]),
 ]);
 

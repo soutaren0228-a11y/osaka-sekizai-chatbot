@@ -131,3 +131,51 @@
 - **利用上限の判定順序**：`generateAnswer()`の先頭で利用上限チェックを行い、上限到達時はFAQ検索・答えさせない話題判定より前に案内文を返す（`unavailable: true`、`unanswered: false`）。この状態は「答えられなかった質問」には記録しない（内容の問題ではなく運用上の理由のため）。
 - **利用状況・上限設定は下書き/公開の対象外**：緊急時に即座に反映させたい設定のため、保存すると下書き・公開の区別なくすぐに反映される（`src/lib/data/usage.ts`）。同じ理由でメンバー・権限も下書き/公開の対象外としている。
 - **通知先メールの初期値**：セッションのユーザーのメールアドレスを、初期メンバー（自分）および利用上限の通知先メールアドレスの初期値として使用した（実際の送信は行わない）。
+
+**注記（本実装後の状態）**：11・12節の「動作確認用：自分の権限を切り替える」UIと`src/lib/data/viewerRole.ts`は、本実装（13節）でSupabase Authによる実ログインに置き換えたため削除した。`useCanEdit()`は現在、ログイン中のメンバーの権限（`src/components/admin/SessionProvider.tsx`が提供するセッション情報）を見て判定する。
+
+## 13. 本実装フェーズ（フェーズ1相当の本番化）
+
+**ここからはUI/UXの試作ではなく、実際にSupabase / Anthropic Claude API / Voyage AIを使う本実装。** ユーザー承認：認証情報は未取得（本人がこれから用意する）。コードは環境変数のプレースホルダーで完結させ、この環境ではライブ動作確認をしない（`npm run lint` / `npm run build` / 単体テストのみで検証）。実装順序は元の設計書のフェーズ1相当（取り込み→チャットAPI→埋め込みウィジェット）から。
+
+### 13-1. 重要な設計上の気づき
+
+フェーズ2・3のUI試作では、よくある質問・話し方や案内先・見た目・下書きと公開は「管理画面を開いているブラウザのlocalStorage」で成立していた。しかし本実装のチャットAPIはサーバー側で動くため、**どの設定も管理画面のブラウザに依存せず、どこからでも読める場所（Supabase）に置かれていなければ機能しない**。したがって「フェーズ1相当から本実装する」といっても、実際には下記がすべて対象になる：
+
+- `bots` / `bot_versions`：下書き・公開の二層構成をテーブルで持つ。中身は persona・appearance・faqs のスナップショット（フェーズ2の`recordDraftChange`+スナップショット方式をそのままDB化したもの）。
+- `sources` / `chunks`：フェーズ1相当のRAG対象データ。
+- `members`：Supabase Authのユーザーと紐づく権限テーブル。
+- `conversations` / `messages` / `unanswered` / `usage_totals` / `rate_limits`：チャットAPIが書き込む運用データ。
+
+「AIに覚えさせる情報」画面だけを本実装にして他は据え置き、ということはできない（チャットAPIがpersona/faqs/appearanceをどこからも読めなくなるため）。この判断はユーザーに一言で共有済み。
+
+### 13-2. 技術選定
+
+- Anthropic Claude：環境変数 `ANTHROPIC_MODEL`（既定値 `claude-haiku-4-5-20251001`）。システムプロンプト（口調・答えさせない話題・案内先・回答ルール・FAQ本文などキャッシュ可能な部分）と、リクエスト固有部分（RAG抽出チャンク・質問文）を分離し、システムプロンプト側に `cache_control` を付けてプロンプトキャッシュを効かせる。
+- Voyage AI：環境変数 `VOYAGE_EMBEDDING_MODEL`（既定値 `voyage-multilingual-2`、1024次元を想定）。日本語含む多言語対応モデル。次元数が異なるモデルに変更する場合は`chunks.embedding`/`faqs.embedding`の`vector(1024)`をマイグレーションし直す必要がある。
+- 未回答判定：AIの応答の先頭行に`[STATUS:ANSWERED]`・`[STATUS:UNANSWERED]`・`[STATUS:REFUSED]`のいずれかを出力させるようシステムプロンプトで指示し（`src/lib/ai/anthropic.ts`）、サーバー側でこの1行を取り除いてから（`src/lib/ai/answerMarker.ts`）クライアントへストリーミングする（お客さまには見えない）。「答えさせない話題」は、フェーズ2のキーワード連想によるサーバーサイド即時判定（`src/lib/ai/templates.ts`の`matchBannedTopic`）を一次防波堤として残し（Claude APIを呼ぶ前に断れる＝コスト削減）、すり抜けた場合の二次防波堤としてシステムプロンプトにも明記する。
+- サイト取り込み：`sitemap.xml`を優先し、なければ同一ドメイン内リンクを深さ2・最大60ページ程度までたどる（`src/lib/ai/extractSiteText.ts`）。`cheerio`で`<nav>` `<header>` `<footer>`等を除去して本文抽出。
+- PDF取り込み：`pdf-parse`パッケージ（v2）はネイティブの`@napi-rs/canvas`に依存し画像処理まで含む重い構成だったため採用せず、`pdfjs-dist`の`legacy/build/pdf.mjs`を直接使ってテキスト抽出のみ行う軽量な実装にした（`src/lib/ai/extractPdfText.ts`）。PDFの実体はSupabase Storageの`source-files`バケットに保存する（ダッシュボードかSupabase CLIで事前に作成が必要。README参照）。
+- チャンク化：日本語は空白で単語区切りされないため、文字数ベース（800文字、100文字オーバーラップ）で分割する簡易実装（`src/lib/ai/chunk.ts`）。
+- 取り込みの非同期処理：Next.js 16の`after()`（レスポンス送出後も処理を継続する仕組み）を使い、登録リクエスト自体はすぐ返し、実際のチャンク化・埋め込みはバックグラウンドで進めて`sources.status`を更新する（`src/lib/ai/ingest.ts`）。Vercelのサーバーレス関数の実行時間制限に注意（大きいサイトは複数ページに分けて逐次処理する）。
+- レート制限・月次利用上限：Supabaseの`rate_limit_events`（IPのハッシュ値＋時刻を1行ずつ記録し、直近1分・当日分の件数を数える） / `usage_totals`テーブルで管理（Redis等の追加サービスを増やさない判断。`rate_limit_events`は増え続けるため、運用時は定期的な削除が必要）。
+- 認証：Supabase Authのメールリンク（マジックリンク）。`members`テーブルの`email`と突き合わせて権限を判定する（`src/lib/auth/session.ts`）。招待は`service_role`キーを使ったSupabase Admin APIの`inviteUserByEmail`で行う（実際のメール送信はSupabaseのデフォルトメール機能に依存）。ログイン状態は`src/middleware`相当の`src/proxy.ts`（Next.js 16で`middleware`から名称変更）でCookieを更新している。
+- **ブラウザはSupabaseへ直接アクセスしない**：すべてのadmin用データ操作は`/api/admin/*`のRoute Handlerを経由し、`SUPABASE_SERVICE_ROLE_KEY`を使うサーバー側コード（`src/lib/supabase/server.ts`）が実行する。認可は各Route Handlerの先頭で`requireMember()`を呼んで判定する（editor/viewerのチェックも含む）。全テーブルでRLSは有効化しているが許可ポリシーは意図的に追加していない（service_roleは常にRLSをバイパスするため）。公開向けの読み取り専用API（`/api/public/bot-config`）と会話用API（`/api/chat`）だけは未認証で呼べるようにし、ドメイン制限とレート制限で保護している。
+- ストリーミングの形式：SSEではなく改行区切りJSON（NDJSON）にしている（`src/lib/ai/streamProtocol.ts`）。`{"type":"delta","text":"..."}`と`{"type":"done","status":...}`の行が並ぶだけの単純な形式で、自前のfetch読み取りだけで完結させるため。
+- 埋め込みウィジェット：`src/widget/main.ts`（Reactを使わないvanilla TypeScript）を`esbuild`でIIFE形式の単一ファイル`public/widget.js`にビルドする（`scripts/build-widget.mjs`、`npm run build`/`npm run dev`の前段で自動実行）。Shadow DOMに描画し、`<script src=".../widget.js" data-bot-id="..." async>`のsrc属性からAPIのオリジンを解決する。**`data-bot-id`属性は受け取るが未使用**（今回は単一ボットの構成のため）。複数ボット対応が必要になったら、`/api/public/bot-config`と`/api/chat`にbotIdを渡すよう拡張する。
+
+### 13-3. この本実装パスで対象外にしているもの
+
+- 会話ログ・利用状況の保存期間に基づく自動削除、`rate_limit_events`の古い行の削除（Vercel CronやSupabase Edge Functionでの定期実行は将来追加）。
+- 公開履歴の版数上限・古い版の自動整理。
+- 複数ボット対応（`data-bot-id`は受け取るが未使用。BOT_SLUG環境変数で単一ボットを指定する構成）。
+- 会話の複数ターンにわたる文脈保持（毎回の質問を単発で処理しており、Claudeへの`messages`に過去のやり取りは含めていない）。
+- ウィジェットの詳細なパフォーマンス最適化（バンドルサイズの厳密な計測等）。
+- 実際のライブ動作確認（Supabase/Anthropic/Voyage AIの認証情報が無いため、この環境では行っていない）。ユーザー側で`.env.local`に本物のキーを設定し、`npm run dev`で確認する。
+
+### 13-4. この環境で確認した範囲
+
+- `npm run lint` / `npx tsc --noEmit` / `npm run build`（`npm run build:widget`込み）がすべてエラーなく通ることを確認済み。
+- `npm run test`（vitest）で、チャンク化・未回答マーカー解析・答えさせない話題判定・コサイン類似度・料金見積もり・DB行↔画面表示用の型変換など、外部APIを呼ばない純粋なロジックを自動テストしている（`src/**/*.test.ts`、36件）。
+- 埋め込みウィジェット（`public/widget.js`）は、`/api/public/bot-config`と`/api/chat`をモックしたヘッドレスブラウザ上で、あいさつ表示・候補チップ・回答のストリーミング表示・答えられない場合の電話/問い合わせボタン・モバイルでの全画面表示までを目視確認済み。
+- Supabase・Anthropic・Voyage AIの実アカウントが無いため、DBマイグレーションの実行やRAG検索・Claude APIの応答そのものは未確認。`supabase/migrations/`のSQLとRoute Handlerのロジックレビューでの確認にとどまる。

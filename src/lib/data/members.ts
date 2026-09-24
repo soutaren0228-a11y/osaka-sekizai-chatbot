@@ -1,12 +1,7 @@
 /**
- * 「メンバー」のデータ取得層（フェーズ3・ダミー実装）。
- * メールアドレスで招待し、権限（編集できる／見るだけ）を管理する。
- * 実際の招待メール送信やログインは行わない（本実装ではSupabase Authに置き換える）。
+ * 「メンバー」のデータ取得層（本実装）。
+ * `/api/admin/members` を経由してSupabase Auth（招待）と members テーブルを操作する。
  */
-import { createId } from "@/lib/utils/id";
-import { compareDesc } from "@/lib/utils/sort";
-import { CURRENT_USER_EMAIL } from "./currentUser";
-
 export type MemberRole = "editor" | "viewer";
 
 export interface MemberRecord {
@@ -17,83 +12,48 @@ export interface MemberRecord {
   isOwner: boolean;
 }
 
-const STORAGE_KEY = "osaka-sekizai:members:v1";
-const CHANGE_EVENT = "osaka-sekizai:members-changed";
-
-function isBrowser() {
-  return typeof window !== "undefined";
-}
-
-function seedMembers(): MemberRecord[] {
-  return [
-    {
-      id: createId("member"),
-      email: CURRENT_USER_EMAIL,
-      role: "editor",
-      invitedAt: new Date().toISOString(),
-      isOwner: true,
-    },
-  ];
-}
-
-function readAll(): MemberRecord[] {
-  if (!isBrowser()) return [];
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    const seeded = seedMembers();
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
-    return seeded;
+async function parseJsonOrThrow(res: Response) {
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(json.error || `リクエストに失敗しました (${res.status})`);
   }
-  try {
-    return JSON.parse(raw) as MemberRecord[];
-  } catch {
-    return [];
-  }
-}
-
-function writeAll(members: MemberRecord[]) {
-  if (!isBrowser()) return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(members));
-  window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
-}
-
-export function subscribeMembers(callback: () => void): () => void {
-  if (!isBrowser()) return () => {};
-  window.addEventListener(CHANGE_EVENT, callback);
-  window.addEventListener("storage", callback);
-  return () => {
-    window.removeEventListener(CHANGE_EVENT, callback);
-    window.removeEventListener("storage", callback);
-  };
+  return json;
 }
 
 export async function getMembers(): Promise<MemberRecord[]> {
-  return [...readAll()].sort((a, b) => compareDesc(a.invitedAt, b.invitedAt));
+  const res = await fetch("/api/admin/members");
+  const json = await parseJsonOrThrow(res);
+  return json.members as MemberRecord[];
 }
 
 export async function inviteMember(input: {
   email: string;
   role: MemberRole;
 }): Promise<MemberRecord> {
-  const record: MemberRecord = {
-    id: createId("member"),
-    email: input.email,
-    role: input.role,
-    invitedAt: new Date().toISOString(),
-    isOwner: false,
-  };
-  writeAll([record, ...readAll()]);
-  return record;
+  const res = await fetch("/api/admin/members", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await parseJsonOrThrow(res);
+  return json.member as MemberRecord;
 }
 
 export async function changeMemberRole(id: string, role: MemberRole): Promise<void> {
-  writeAll(readAll().map((m) => (m.id === id ? { ...m, role } : m)));
+  const res = await fetch(`/api/admin/members/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role }),
+  });
+  await parseJsonOrThrow(res);
 }
 
 export async function removeMember(id: string): Promise<void> {
-  writeAll(readAll().filter((m) => m.id !== id));
+  const res = await fetch(`/api/admin/members/${id}`, { method: "DELETE" });
+  await parseJsonOrThrow(res);
 }
 
+/** 削除の「元に戻す」：同じメールアドレス・権限で招待し直す */
 export async function restoreMember(record: MemberRecord): Promise<void> {
-  writeAll([record, ...readAll().filter((m) => m.id !== record.id)]);
+  await inviteMember({ email: record.email, role: record.role });
 }

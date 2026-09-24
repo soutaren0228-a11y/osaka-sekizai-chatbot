@@ -1,9 +1,11 @@
 /**
- * 「話し方・ルール」のデータ取得層（フェーズ2・ダミー実装）。
- * 下書き（テスト画面が参照）と公開版（お客さま向けチャットが参照）を分けて保持する。
+ * 「話し方・ルール」のデータ取得層（本実装）。
+ *
+ * 下書きは `/api/admin/persona` を経由してSupabase（bots.draft_persona）に保存する。
+ * 公開版はチャットAPI／ウィジェット公開設定APIがサーバー側で直接読むため、
+ * ここには公開版を読み取るクライアント関数を用意していない。
  */
 import { createId } from "@/lib/utils/id";
-import { recordDraftChange } from "./publishState";
 
 export type ToneKey = "polite" | "friendly" | "concise";
 
@@ -48,15 +50,7 @@ const PRESET_TOPIC_LABELS = [
   "採用・求人について",
 ];
 
-const DRAFT_KEY = "osaka-sekizai:persona:draft:v1";
-const PUBLISHED_KEY = "osaka-sekizai:persona:published:v1";
-const CHANGE_EVENT = "osaka-sekizai:persona-changed";
-
-function isBrowser() {
-  return typeof window !== "undefined";
-}
-
-function defaultSettings(): PersonaSettings {
+export function defaultPersonaSettings(): PersonaSettings {
   return {
     tone: "polite",
     bannedTopics: PRESET_TOPIC_LABELS.map((label) => ({
@@ -70,60 +64,25 @@ function defaultSettings(): PersonaSettings {
   };
 }
 
-function readKey(key: string): PersonaSettings {
-  if (!isBrowser()) return defaultSettings();
-  const raw = window.localStorage.getItem(key);
-  if (!raw) {
-    const seeded = defaultSettings();
-    window.localStorage.setItem(key, JSON.stringify(seeded));
-    return seeded;
+async function parseJsonOrThrow(res: Response) {
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(json.error || `リクエストに失敗しました (${res.status})`);
   }
-  try {
-    return JSON.parse(raw) as PersonaSettings;
-  } catch {
-    return defaultSettings();
-  }
-}
-
-function writeDraft(settings: PersonaSettings) {
-  if (!isBrowser()) return;
-  window.localStorage.setItem(DRAFT_KEY, JSON.stringify(settings));
-  window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
-}
-
-export function subscribePersona(callback: () => void): () => void {
-  if (!isBrowser()) return () => {};
-  window.addEventListener(CHANGE_EVENT, callback);
-  window.addEventListener("storage", callback);
-  return () => {
-    window.removeEventListener(CHANGE_EVENT, callback);
-    window.removeEventListener("storage", callback);
-  };
+  return json;
 }
 
 export async function getDraftPersona(): Promise<PersonaSettings> {
-  return readKey(DRAFT_KEY);
-}
-
-export async function getPublishedPersona(): Promise<PersonaSettings> {
-  return readKey(PUBLISHED_KEY);
+  const res = await fetch("/api/admin/persona");
+  const json = await parseJsonOrThrow(res);
+  return json.persona as PersonaSettings;
 }
 
 export async function saveDraftPersona(settings: PersonaSettings): Promise<void> {
-  writeDraft(settings);
-  recordDraftChange("話し方・ルールを更新しました");
-}
-
-export async function publishPersonaDraft(): Promise<void> {
-  if (!isBrowser()) return;
-  window.localStorage.setItem(PUBLISHED_KEY, JSON.stringify(readKey(DRAFT_KEY)));
-  window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
-}
-
-/** 過去の版に戻す：下書き・公開版の両方を指定の内容で上書きする */
-export async function restorePersonaSnapshot(settings: PersonaSettings): Promise<void> {
-  if (!isBrowser()) return;
-  window.localStorage.setItem(DRAFT_KEY, JSON.stringify(settings));
-  window.localStorage.setItem(PUBLISHED_KEY, JSON.stringify(settings));
-  window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
+  const res = await fetch("/api/admin/persona", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  await parseJsonOrThrow(res);
 }

@@ -1,9 +1,8 @@
 /**
- * 「見た目」のデータ取得層（フェーズ2・ダミー実装）。
- * 下書き（テスト画面が参照）と公開版（お客さま向けチャットが参照）を分けて保持する。
+ * 「見た目」のデータ取得層（本実装）。
+ * 下書きは管理画面用の `/api/admin/appearance`、公開版はお客さま向けの
+ * `/api/public/bot-config` を経由してSupabaseに保存・取得する。
  */
-import { recordDraftChange } from "./publishState";
-
 export type ChatPosition = "right" | "left";
 
 export interface ColorPreset {
@@ -34,15 +33,7 @@ export interface AppearanceSettings {
   suggestions: string[];
 }
 
-const DRAFT_KEY = "osaka-sekizai:appearance:draft:v1";
-const PUBLISHED_KEY = "osaka-sekizai:appearance:published:v1";
-const CHANGE_EVENT = "osaka-sekizai:appearance-changed";
-
-function isBrowser() {
-  return typeof window !== "undefined";
-}
-
-function defaultSettings(): AppearanceSettings {
+export function defaultAppearanceSettings(): AppearanceSettings {
   return {
     colorPresetKey: "navy",
     customColor: "#1F3A7A",
@@ -62,66 +53,36 @@ function defaultSettings(): AppearanceSettings {
   };
 }
 
-function readKey(key: string): AppearanceSettings {
-  if (!isBrowser()) return defaultSettings();
-  const raw = window.localStorage.getItem(key);
-  if (!raw) {
-    const seeded = defaultSettings();
-    window.localStorage.setItem(key, JSON.stringify(seeded));
-    return seeded;
+async function parseJsonOrThrow(res: Response) {
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(json.error || `リクエストに失敗しました (${res.status})`);
   }
-  try {
-    return { ...defaultSettings(), ...(JSON.parse(raw) as AppearanceSettings) };
-  } catch {
-    return defaultSettings();
-  }
-}
-
-function writeDraft(settings: AppearanceSettings) {
-  if (!isBrowser()) return;
-  window.localStorage.setItem(DRAFT_KEY, JSON.stringify(settings));
-  window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
-}
-
-export function subscribeAppearance(callback: () => void): () => void {
-  if (!isBrowser()) return () => {};
-  window.addEventListener(CHANGE_EVENT, callback);
-  window.addEventListener("storage", callback);
-  return () => {
-    window.removeEventListener(CHANGE_EVENT, callback);
-    window.removeEventListener("storage", callback);
-  };
+  return json;
 }
 
 export async function getDraftAppearance(): Promise<AppearanceSettings> {
-  return readKey(DRAFT_KEY);
+  const res = await fetch("/api/admin/appearance");
+  const json = await parseJsonOrThrow(res);
+  return json.appearance as AppearanceSettings;
 }
 
+/** 公開版（お客さま向け）。ウィジェット・テスト画面のどちらからも呼べる公開APIを使う */
 export async function getPublishedAppearance(): Promise<AppearanceSettings> {
-  return readKey(PUBLISHED_KEY);
+  const res = await fetch("/api/public/bot-config");
+  const json = await parseJsonOrThrow(res);
+  return json.appearance as AppearanceSettings;
 }
 
 export async function saveDraftAppearance(
   settings: AppearanceSettings
 ): Promise<void> {
-  writeDraft(settings);
-  recordDraftChange("見た目を更新しました");
-}
-
-export async function publishAppearanceDraft(): Promise<void> {
-  if (!isBrowser()) return;
-  window.localStorage.setItem(PUBLISHED_KEY, JSON.stringify(readKey(DRAFT_KEY)));
-  window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
-}
-
-/** 過去の版に戻す：下書き・公開版の両方を指定の内容で上書きする */
-export async function restoreAppearanceSnapshot(
-  settings: AppearanceSettings
-): Promise<void> {
-  if (!isBrowser()) return;
-  window.localStorage.setItem(DRAFT_KEY, JSON.stringify(settings));
-  window.localStorage.setItem(PUBLISHED_KEY, JSON.stringify(settings));
-  window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
+  const res = await fetch("/api/admin/appearance", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  await parseJsonOrThrow(res);
 }
 
 export function resolveAccentColor(settings: AppearanceSettings): string {

@@ -112,7 +112,7 @@ function PdfForm({ onAdded }: { onAdded: () => void }) {
       return;
     }
     setSubmitting(true);
-    await addSourceFromPdf({ fileName: file.name, fileSizeBytes: file.size });
+    await addSourceFromPdf({ file });
     setSubmitting(false);
     onAdded();
   }

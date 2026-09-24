@@ -1,12 +1,8 @@
 /**
- * 「答えられなかった質問」のデータ取得層（フェーズ2）。
- *
- * 同じ質問文（前後の空白・大文字小文字を無視）はまとめて回数をカウントする。
- * この一覧は公開/下書きの対象ではなく、社内の運用メモとして常に最新の状態を持つ。
+ * 「答えられなかった質問」のデータ取得層（本実装）。
+ * 記録自体は `/api/chat` がサーバー側で行う（src/lib/data/server/unansweredServer.ts）。
+ * ここでは管理画面の一覧・操作用の薄いラッパーのみを提供する。
  */
-import { createId } from "@/lib/utils/id";
-import { compareDesc } from "@/lib/utils/sort";
-
 export interface UnansweredEntry {
   id: string;
   question: string;
@@ -17,92 +13,39 @@ export interface UnansweredEntry {
   status: "open" | "dismissed";
 }
 
-const STORAGE_KEY = "osaka-sekizai:unanswered:v2";
-const CHANGE_EVENT = "osaka-sekizai:unanswered-changed";
-
-function isBrowser() {
-  return typeof window !== "undefined";
-}
-
-function normalize(question: string): string {
-  return question.trim().replace(/\s+/g, "");
-}
-
-function readAll(): UnansweredEntry[] {
-  if (!isBrowser()) return [];
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw) as UnansweredEntry[];
-  } catch {
-    return [];
+async function parseJsonOrThrow(res: Response) {
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(json.error || `リクエストに失敗しました (${res.status})`);
   }
-}
-
-function writeAll(entries: UnansweredEntry[]) {
-  if (!isBrowser()) return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-  window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
-}
-
-export function subscribeUnanswered(callback: () => void): () => void {
-  if (!isBrowser()) return () => {};
-  window.addEventListener(CHANGE_EVENT, callback);
-  window.addEventListener("storage", callback);
-  return () => {
-    window.removeEventListener(CHANGE_EVENT, callback);
-    window.removeEventListener("storage", callback);
-  };
-}
-
-export async function recordUnansweredQuestion(
-  question: string,
-  fromTest: boolean
-): Promise<void> {
-  const trimmed = question.trim();
-  if (!trimmed) return;
-
-  const entries = readAll();
-  const key = normalize(trimmed);
-  const existing = entries.find((e) => normalize(e.question) === key);
-
-  if (existing) {
-    existing.count += 1;
-    existing.lastAskedAt = new Date().toISOString();
-    existing.testOnly = existing.testOnly && fromTest;
-  } else {
-    entries.push({
-      id: createId("unanswered"),
-      question: trimmed,
-      count: 1,
-      lastAskedAt: new Date().toISOString(),
-      testOnly: fromTest,
-      status: "open",
-    });
-  }
-  writeAll(entries);
+  return json;
 }
 
 export async function getUnansweredQuestions(): Promise<UnansweredEntry[]> {
-  return [...readAll()]
-    .filter((e) => e.status === "open")
-    .sort((a, b) => compareDesc(a.lastAskedAt, b.lastAskedAt));
-}
-
-export async function getOpenUnansweredCount(): Promise<number> {
-  return readAll().filter((e) => e.status === "open").length;
+  const res = await fetch("/api/admin/unanswered");
+  const json = await parseJsonOrThrow(res);
+  return json.entries as UnansweredEntry[];
 }
 
 export async function dismissUnanswered(id: string): Promise<void> {
-  writeAll(
-    readAll().map((e) => (e.id === id ? { ...e, status: "dismissed" } : e))
-  );
+  const res = await fetch(`/api/admin/unanswered/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status: "dismissed" }),
+  });
+  await parseJsonOrThrow(res);
 }
 
 export async function reopenUnanswered(id: string): Promise<void> {
-  writeAll(readAll().map((e) => (e.id === id ? { ...e, status: "open" } : e)));
+  const res = await fetch(`/api/admin/unanswered/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status: "open" }),
+  });
+  await parseJsonOrThrow(res);
 }
 
 export async function removeUnanswered(id: string): Promise<void> {
-  writeAll(readAll().filter((e) => e.id !== id));
+  const res = await fetch(`/api/admin/unanswered/${id}`, { method: "DELETE" });
+  await parseJsonOrThrow(res);
 }

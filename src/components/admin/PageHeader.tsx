@@ -4,7 +4,6 @@ import { useState } from "react";
 import { usePendingChanges } from "@/hooks/usePendingChanges";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { publishAll } from "@/lib/data/publish";
-import { CURRENT_USER_EMAIL } from "@/lib/data/currentUser";
 import { useToast } from "@/components/ui/ToastProvider";
 
 interface PageHeaderProps {
@@ -21,7 +20,7 @@ export function PageHeader({ title, description }: PageHeaderProps) {
   async function handlePublish() {
     if (publishing || count === 0 || !canEdit) return;
     setPublishing(true);
-    await publishAll(CURRENT_USER_EMAIL);
+    await publishAll();
     setPublishing(false);
     refresh();
     showToast({ message: "公開しました。お客さま向けチャットに反映されました。" });

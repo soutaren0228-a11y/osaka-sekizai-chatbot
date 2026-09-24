@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getPublishHistory, subscribePublishHistory } from "@/lib/data/publishHistory";
+import { getPublishHistory } from "@/lib/data/publishHistory";
 import type { PublishVersion } from "@/lib/data/publishHistory";
 
 export function usePublishHistory() {
@@ -17,7 +17,6 @@ export function usePublishHistory() {
 
   useEffect(() => {
     refresh();
-    return subscribePublishHistory(refresh);
   }, [refresh]);
 
   return { versions, loaded, refresh };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getConversations, subscribeConversations } from "@/lib/data/conversations";
+import { getConversations } from "@/lib/data/conversations";
 import type { ConversationRecord } from "@/lib/data/conversations";
 
 export function useConversations(isTest: boolean) {
@@ -17,7 +17,6 @@ export function useConversations(isTest: boolean) {
 
   useEffect(() => {
     refresh();
-    return subscribeConversations(refresh);
   }, [refresh]);
 
   return { conversations, loaded, refresh };

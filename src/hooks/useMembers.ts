@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getMembers, subscribeMembers } from "@/lib/data/members";
+import { getMembers } from "@/lib/data/members";
 import type { MemberRecord } from "@/lib/data/members";
 
 export function useMembers() {
@@ -17,7 +17,6 @@ export function useMembers() {
 
   useEffect(() => {
     refresh();
-    return subscribeMembers(refresh);
   }, [refresh]);
 
   return { members, loaded, refresh };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getDraftChanges, subscribeDraftChanges } from "@/lib/data/publishState";
+import { getDraftChanges } from "@/lib/data/publishState";
 import type { DraftChange } from "@/lib/data/publishState";
 
 export function usePendingChanges() {
@@ -17,7 +17,6 @@ export function usePendingChanges() {
 
   useEffect(() => {
     refresh();
-    return subscribeDraftChanges(refresh);
   }, [refresh]);
 
   return { changes, count: changes.length, loaded, refresh };

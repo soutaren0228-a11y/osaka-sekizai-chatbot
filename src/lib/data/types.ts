@@ -36,6 +36,5 @@ export interface AddTextInput {
 }
 
 export interface AddPdfInput {
-  fileName: string;
-  fileSizeBytes: number;
+  file: File;
 }
